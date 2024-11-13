@@ -66,7 +66,7 @@ BuscaCar:
         addu r29, r29, r4 ;aplicamos el desplazamiento para nuestro contador
 
 BucCar:
-        ld.bu r6, r3, -1 ;no sé porqué esto funciona pero lo hace, NO TOCAR!!!
+        ld.bu r6, r3, 0 ;cargamos el primer caracter de la cadena
         cmp r8, r29, r5 ;revisamos si no llegamos al límite "to"
         bb1 eq, r8, FINBusca
         cmp r7, r6, r0 ; revisamos si el caracter no es el nulo
@@ -93,17 +93,19 @@ CoincidenCad:
 CCadBUC:
         ld.bu r5, r2, r4 ;cargamos en r5 el primer caracter de cadena1
         ld.bu r6, r3, r4 ;cargamos en r6 el primer caracter de cadena2
+        cmp r7, r6, r0   ;revisamos que no hayamos llegado al final
+        bb1 eq, r7, FINCCad 
         cmp r7, r6, r5   ;comparamos los caracteres
-        bb0 eq, r7, FINCCad ;si *NO* es igual, entonces pos nada, saltamos a FIN
+        bb1 ne, r7, FINCCad ;si *NO* es igual, entonces pos nada, saltamos a FIN
         addu r29, r29, 1 ;aumentamos la cuenta de caracteres que coinciden
         addu r4, r4, 1   ;aumentamos puntero
         br CCadBUC  
 
 FINCCad:POP(r1)
         jmp(r1)
+
 ;FIN CoincidenCad ( cadena1, cadena2 )
 
-BuscaMax: xor r0,r0,r0
 PoneBitA1: xor r0,r0,r0
 LeeBit: xor r0,r0,r0
 Comprime: xor r0,r0,r0
@@ -119,8 +121,8 @@ ref: data "*2345*78*0\0"
 C: data "7"
 from: data 3
 to: data 8
-cadena1: data "1234567890\0"
-cadena2: data "abcd12"
+cadena1: data "1234567890\0A"
+cadena2: data "1234567890\0A"
 ;-----------------TESTERS-----------------;
 LongCadT:
         LOAD(r30, pila)
@@ -150,6 +152,8 @@ BuscaCarT:
         br END
 
 CoincidenCadT:
+        LOAD(r30, pila)
+        LOAD(r29, r29inicio)
         LEA(r20, cadena2)
         PUSH(r20)
         LEA(r20, cadena1)
@@ -164,3 +168,103 @@ START:
         bsr CoincidenCadT
           
 END: stop
+
+
+;
+; Debe incorporar este fichero con TODAS sus l�neas, sin modificar
+; ninguna de ellas, al final de su archivo CDV24.ens
+;
+; Este aviso se refiere tambi�n a las l�neas de comentario
+; 
+;
+;; Grupo:    230053 - Tue Oct 29 18:28:28 CET 2024
+
+BuscaMax:
+	PUSH (r1)
+	PUSH (r31)
+	or   r31, r30, 0
+	or   r28, r0, 0x333A
+	PUSH (r28)
+
+	ld   r10, r31, 8;  REF
+	ld   r11, r31, 12; MAX
+	ld   r12, r31, 16; Dir(JJ)
+
+	sub  r5, r0, 1		; guarda -1 en *JJ por si no se
+	st   r5, r12, 0		; encuentran coincidencias
+
+	addu r27, r0, r0  ; P
+	addu r28, r0, r0  ; L
+
+BucBM:
+	ld.bu r20, r10, r11	; C=REF(max)
+
+				; Reserva registros que
+				; necesita conservar
+	PUSH (r28) 	    	; L
+	PUSH (r11)	    	; MAX
+
+	     		    	; Par�metros de BuscaCar
+	PUSH (r27)	    	; P
+	PUSH (r10)	    	; REF
+	PUSH (r20)	   	; C
+	bsr  BuscaCar
+	POP  (r20)
+	POP  (r10)
+	POP  (r27)
+
+	POP  (r11)		; Recupera registros
+	POP  (r28)	        ; salvaguardados
+
+	cmp  r5, r29, r11	; nuevo P es >= MAX ??
+	bb1  hs, r5, finBM
+	addu r27, r29, r0	; P = nuevo P
+	
+	addu r13, r10, r27	; *REF(P)
+	addu r14, r10, r11 	; *REF(max)	
+
+	PUSH (r11)     		; Reserva registros que
+	PUSH (r10)		; necesita conservar
+	PUSH (r28)
+	PUSH (r27)
+	
+	PUSH (r14)		; Par�metros de CoincidenCad
+	PUSH (r13)
+	bsr  CoincidenCad
+	POP  (r13)
+	POP  (r14)
+	
+	POP  (r27)		; Recupera registros
+	POP  (r28)		; salvaguardados
+	POP  (r10)
+	POP  (r11)
+
+	cmp r5, r29, r28	; Comprueba si longitud > L
+	bb1 le, r5, contBM	; Si no lo es, contin�a
+	cmp r5, r29, 255	; Comprueba si longitud > 255
+	bb1 le, r5, noLimBM	; Si no lo es, contin�a
+	addu r29, r0, 255	; Si lo es, limita su valor a 255
+	
+noLimBM:
+	addu r28, r29, r0	; actualiza L
+	ld   r12, r31, 16	; Dir(JJ)
+	st   r27, r12, r0	; actualiza P en *JJ
+	bb1 ge, r5, finBM	; Si coincidencia >= 255 termina
+contBM: 
+	addu r27, r27, 1	; Pasa al siguiente car�cter
+	cmp  r5, r27, r11	; Es P>=max ?
+	bb1  hs, r5, finBM
+	
+	br   BucBM   		; Nueva b�squeda del primer car�cter
+
+finBM:
+	addu r29, r28, r0	; asigna L al valor de retorno r29
+	  
+	or   r27, r0, 0x7F2
+	POP  (r28)
+
+	or   r30, r31, 0
+	POP  (r31)
+	POP  (r1)
+	jmp  (r1)
+;; Grupo:    230053
