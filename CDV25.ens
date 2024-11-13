@@ -1,0 +1,166 @@
+;------------AUTORES------------;
+;MARIA LUISA ECHANOVE LEYRA
+;ALEXIS ANDRE GARCIA MARTINEZ
+
+
+;------------MACROS------------;
+
+;Dado que el 88110 no tiene estructura de pila definiremos las macros PUSH(rX) Y POP(rX)
+org 2000
+PUSH:	MACRO(ra)
+    subu r30, r30, 4
+    st ra, r30, 0
+ENDMACRO
+
+POP:	MACRO(ra)
+    ld ra,r30,0
+    addu r30, r30, 4
+ENDMACRO
+
+LEA:    MACRO  (reg, ETIQ)
+        or     reg, r0,  low(ETIQ)
+        or.u   reg, reg, high(ETIQ)
+        ENDMACRO
+
+LOAD: 	MACRO (reg, ETIQ)
+	LEA   (reg, ETIQ)
+	ld reg, reg, r0
+	ENDMACRO
+
+
+DBNZ:   MACRO(ra, ETIQUETA) ;Decrementa ra en 1, mientras no sea 0, salta a la etiqueta
+        sub ra, ra, 1
+        cmp r5, ra, r0
+        bb0 eq, r5, ETIQUETA
+        ENDMACRO
+
+;----------------SUBRUTINAS---------------;
+org 3000
+;Long = LongCad(cadena)
+
+LongCad:PUSH(r1)
+        ld r3, r30, 4 ;r3<-M(r30-4) /r30+4=dirección de la cadena
+        xor r29, r29, r29 ;Inicializamos r29 a 0s para ser nuestro contador
+        
+BUClong:ld.bu r4, r3, 0 	;cargamos el primer byte al que apunta r3
+        cmp r5, r4, r0
+        bb1 eq, r5, FINLong
+        addu r29, r29, 1 ;contador+=1
+        addu r3, r3, 1   ;aumentamos puntero
+        br BUClong
+        
+FINLong:POP(r1)
+        jmp(r1)
+;FIN LongCad(cadena)
+
+
+;rv=BuscaCar(C, ref, from, to)
+BuscaCar:
+        PUSH(r1)
+        ld r2, r30, 4 ;r2<-M(r30-4) /r30+4="C"carácter
+        ld r3, r30, 8 ;r3<-M(30-8) /r30+8="ref"dirección primer caracter cadena (puntero)
+        ld r4, r30, 12;r4<-M(30-12)/r30+12="from"desplazamineto donde empieza
+        ld r5, r30, 16;r5<-M(30-16)/r30+16="to"límite de búsqueda
+        xor r29, r29, r29;inicializamos r29 a 0s
+        addu r3, r3, r4 ;aplicamos desplazamiento "from"
+        addu r29, r29, r4 ;aplicamos el desplazamiento para nuestro contador
+
+BucCar:
+        ld.bu r6, r3, -1 ;no sé porqué esto funciona pero lo hace, NO TOCAR!!!
+        cmp r8, r29, r5 ;revisamos si no llegamos al límite "to"
+        bb1 eq, r8, FINBusca
+        cmp r7, r6, r0 ; revisamos si el caracter no es el nulo
+        bb1 eq, r7, FINBusca
+        cmp r7, r6, r2 ; comparamos si coincide con el caracter
+        bb1 eq, r7, FINBusca
+        addu r29, r29, 1 ;contador+=1
+        addu r3, r3, 1 ;aumentamos puntero
+        br BucCar
+
+FINBusca:POP(r1)
+        jmp (r1)
+;Fin BuscaCar(C, ref, from, to)
+
+
+;long = CoincidenCad ( cadena1, cadena2 )
+CoincidenCad:
+        PUSH(r1)
+        ld r2, r30, 4 ; r2<-M(cadena1) dir
+        ld r3, r30, 8 ; r3<-M(cadena2) dir
+        xor r4, r4, r4 ;r4 a 0's para desplazamiento
+        xor r29, r29, r29; r29 a 0's
+
+CCadBUC:
+        ld.bu r5, r2, r4 ;cargamos en r5 el primer caracter de cadena1
+        ld.bu r6, r3, r4 ;cargamos en r6 el primer caracter de cadena2
+        cmp r7, r6, r5   ;comparamos los caracteres
+        bb0 eq, r7, FINCCad ;si *NO* es igual, entonces pos nada, saltamos a FIN
+        addu r29, r29, 1 ;aumentamos la cuenta de caracteres que coinciden
+        addu r4, r4, 1   ;aumentamos puntero
+        br CCadBUC  
+
+FINCCad:POP(r1)
+        jmp(r1)
+;FIN CoincidenCad ( cadena1, cadena2 )
+
+BuscaMax: xor r0,r0,r0
+PoneBitA1: xor r0,r0,r0
+LeeBit: xor r0,r0,r0
+Comprime: xor r0,r0,r0
+Verifica: xor r0,r0,r0
+Descomprime: xor r0,r0,r0
+
+;-----------------DATA-----------------;
+org 8000
+pila: data 0x00014FFC
+r29inicio: data 0x00000064
+cadena: data "123456789 123456789 12\0A"
+ref: data "*2345*78*0\0"
+C: data "7"
+from: data 3
+to: data 8
+cadena1: data "1234567890\0"
+cadena2: data "abcd12"
+;-----------------TESTERS-----------------;
+LongCadT:
+        LOAD(r30, pila)
+        LOAD(r29, r29inicio)
+        LEA(r20,cadena)
+        PUSH(r20)
+        bsr LongCad
+        POP(r20)
+        br END
+
+BuscaCarT:
+        LOAD(r30, pila)
+        LOAD(r29, r29inicio)
+        LOAD(r20,to) 
+        PUSH(r20)
+        LOAD(r20,from)
+        PUSH(r20)
+        LEA(r20, ref)
+        PUSH(r20)
+        LOAD(r20, C)
+        PUSH(r20)
+        bsr BuscaCar
+        POP(r20)
+        POP(r20)
+        POP(r20)
+        POP(r20)
+        br END
+
+CoincidenCadT:
+        LEA(r20, cadena2)
+        PUSH(r20)
+        LEA(r20, cadena1)
+        PUSH(r20)
+        bsr CoincidenCad
+        POP(r20)
+        POP(r20)
+        br END
+
+START:  
+        
+        bsr CoincidenCadT
+          
+END: stop
