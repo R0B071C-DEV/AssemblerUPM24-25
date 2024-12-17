@@ -6,161 +6,610 @@
 ;------------MACROS------------;
 
 ;Dado que el 88110 no tiene estructura de pila definiremos las macros PUSH(rX) Y POP(rX)
-org 2000
-PUSH:	MACRO(ra)
-    subu r30, r30, 4
-    st ra, r30, 0
+org 1000
+PUSH:	MACRO (ra)
+        subu r30, r30, 4
+        st ra, r30, 0
 ENDMACRO
 
-POP:	MACRO(ra)
-    ld ra,r30,0
-    addu r30, r30, 4
+POP:	MACRO (ra)
+        ld ra,r30,0
+        addu r30, r30, 4
 ENDMACRO
 
 LEA:    MACRO  (reg, ETIQ)
-        or     reg, r0,  low(ETIQ)
-        or.u   reg, reg, high(ETIQ)
+        or     reg, r0,  low (ETIQ)
+        or.u   reg, reg, high (ETIQ)
         ENDMACRO
 
 LOAD: 	MACRO (reg, ETIQ)
-	LEA   (reg, ETIQ)
-	ld reg, reg, r0
-	ENDMACRO
+        LEA   (reg, ETIQ)
+        ld    reg, reg, r0
+        ENDMACRO
 
-
-DBNZ:   MACRO(ra, ETIQUETA) ;Decrementa ra en 1, mientras no sea 0, salta a la etiqueta
+DBNZ:   MACRO(ra, ETIQUETA)     ; Decrementa ra en 1. Mientras no sea 0, salta a la etiqueta
         sub ra, ra, 1
         cmp r5, ra, r0
         bb0 eq, r5, ETIQUETA
         ENDMACRO
 
 ;----------------SUBRUTINAS---------------;
-org 3000
-;Long = LongCad(cadena)
 
-LongCad:PUSH(r1)
-        ld r3, r30, 4 ;r3<-M(r30-4) /r30+4=dirección de la cadena
-        xor r29, r29, r29 ;Inicializamos r29 a 0s para ser nuestro contador
+;Long = LongCad (cadena)
+org 5000
+LongCad: ld r3, r30, 0          ; Cargamos la dirección de la cadena  
+         xor r29, r29, r29      ; Inicializamos r29 a 0s para ser nuestro contador
         
-BUClong:ld.bu r4, r3, 0 	;cargamos el primer byte al que apunta r3
-        cmp r5, r4, r0
-        bb1 eq, r5, FINLong
-        addu r29, r29, 1 ;contador+=1
-        addu r3, r3, 1   ;aumentamos puntero
-        br BUClong
+BUClong: ld.bu r4, r3, 0 	    ; Cargamos el primer byte al que apunta r3
+         cmp r5, r4, r0
+         bb1 eq, r5, FINLong
+         addu r29, r29, 1       ; Contador += 1
+         addu r3, r3, 1         ; Aumentamos puntero
+         br BUClong
         
-FINLong:POP(r1)
-        jmp(r1)
-;FIN LongCad(cadena)
+FINLong: jmp (r1) 
+; FIN LongCad (cadena)
 
+BuscaCar:       ld r3, r30, 0            ; Cargamos el caracter
+                ld r4, r30, 4            ; Cargamos la dirección de la cadena 'referencia'
+                ld r5, r30, 8            ; Cargamos el valor de 'from', que utilizaremos como
+                                         ; puntero para la búsqueda
+                ld r6, r30, 12           ; Cargamos el valor de 'to'
 
-;rv=BuscaCar(C, ref, from, to)
-BuscaCar:
-        PUSH(r1)
-        ld r2, r30, 4 ;r2<-M(r30-4) /r30+4="C"carácter
-        ld r3, r30, 8 ;r3<-M(30-8) /r30+8="ref"dirección primer caracter cadena (puntero)
-        ld r4, r30, 12;r4<-M(30-12)/r30+12="from"desplazamineto donde empieza
-        ld r5, r30, 16;r5<-M(30-16)/r30+16="to"límite de búsqueda
-        xor r29, r29, r29;inicializamos r29 a 0s
-        addu r3, r3, r4 ;aplicamos desplazamiento "from"
-        addu r29, r29, r4 ;aplicamos el desplazamiento para nuestro contador
+BUCbusca:       cmp r7, r5, r6           ; Miramos si se ha llegado a 'to'.  
+                bb1 eq, r7, FINBusca 
+                ld.bu r2, r4, r5
+                cmp r7, r2, r3         
+                bb1 eq, r7, FINBusca
+                addu r5, r5, 1           ; Movemos el puntero de búsqueda al siguiente caracter
+                                         ; de la cadena de referencia
+                br BUCbusca
+                
+FINBusca:       or r29, r5, r5
+                jmp (r1)              
+          
+CoincidenCad:   ld r4, r30, 0            ; Cargamos en r3 la dirección de la primera cadena
+                ld r5, r30, 4            ; Cargamos en r4 la dirección de la segunda cadena
+                or r29, r0, r0           ; Inicializamos el contador a cero 
+                
+BUCcoinciden:   ld.bu r2, r4, 0          
+                ld.bu r3, r5, 0
+                cmp r7, r2, r0           ; Si se ha llegado al final de alguna de las cadenas,
+                bb1 eq, r7, FINCoinciden ; salta a FINCoinciden
+                cmp r7, r3, r0
+                bb1 eq, r7, FINCoinciden
+                cmp r7, r2, r3           ; Si los 2 caracteres son distintos salta a 										 ; FINCoinciden
+                bb0 eq, r7, FINCoinciden
+                addu r29, r29, 1         ; Incrementa el contador
+                addu r4, r4, 1           ; Apunta al siguiente caracter de la primera cadena
+                addu r5, r5, 1           ; Apunta al siguiente caracter de la segunda cadena
+                br BUCcoinciden
+                
+FINCoinciden:   jmp (r1)
 
-BucCar:
-        ld.bu r6, r3, -1 ;no sé porqué esto funciona pero lo hace, NO TOCAR!!!
-        cmp r8, r29, r5 ;revisamos si no llegamos al límite "to"
-        bb1 eq, r8, FINBusca
-        cmp r7, r6, r0 ; revisamos si el caracter no es el nulo
-        bb1 eq, r7, FINBusca
-        cmp r7, r6, r2 ; comparamos si coincide con el caracter
-        bb1 eq, r7, FINBusca
-        addu r29, r29, 1 ;contador+=1
-        addu r3, r3, 1 ;aumentamos puntero
-        br BucCar
+PoneBitA1: ld r3, r30, r0		; Carga la dirección del campo de bits
+		   ld r4, r30, 4		; Carga el valor de Numbit
+		   divu r5, r4, 8		; Calculamos el número de byte que queremos mirar
+		   ld.bu r8, r3, r5		; Carga el campo de bits en r3
+		   addu r6, r5, 1		; Calculamos la posicion en el campo de bits:
+								; 1) Le sumamos 1 al número de byte que queremos mirar
+		   mulu r6, r6, 8 		; 2) Calculamos la dirección de la posición 0 del byte
+		   subu r6, r6, 1		 
+		   subu r6, r6, r4		; 3) Calculamos la posicion del bit que queremos poner a 1
+		   set r6, r6, 1<5>		; Carga en r4 la longitud del campo de unos a poner
+								; a 1, que es 1
+		   set r2, r8, r6		; Pone a 1 el bit
+		   st.b r2, r3, r5		; Almacena el resultado en la direccion del campo de bits
+		   jmp(r1)
 
-FINBusca:POP(r1)
-        jmp (r1)
-;Fin BuscaCar(C, ref, from, to)
+Comprime: 	PUSH (r1)			; Guardamos la dirección de retorno
+			PUSH (r31)			; y el valor anterior del puntero de marco de pila
+			or r31, r30, r30	; Inicializamos puntero de marco de pila
+			ld r8, r31, 8		; Carga la dirección del texto a comprimir
+			ld r9, r31, 12		; Carga la dirección de la zona donde se debe dejar										; el texto comprimido
+			PUSH (r8)			; Parámetro de LongCad
+			bsr LongCad			
+			
+			addu r30, r30, 4	
+			or r2, r29, r29		; Cargamos en r2 la longitud del texto
+			or r10, r2, r2		; Cargamos en r10 la longitud del texto para guardar 
+								; el espacio a reservar para el texto comprimido, que 
+								; debe ser múltiplo de 4
+			or r11, r0, r0		; Calculamos espacio para guardar el texto comprimido:
+			
+BUCmul4:	extu r11, r10, 2<0>			; Miramos los dos bits menos significativos de la													; longitud del texto para ver si es múltiplo de 4
+			cmp r7, r11, r0 			; ¿Los dos primeros bits menos significativos son 0?
+			bb1 eq, r7, SigueComprime	; Si son 0, ya sabemos la cantidad de espacio a 										; reservar
+			addu r10, r10, 1			; Si no, no es múltiplo de 4. Sumamos 1 y 
+			br BUCmul4					; vamos al inicio del bucle
+			
+SigueComprime:	subu r30, r30, r10	; Reservamos espacio para la variable pilaZona3	
+				or r14, r30, r30	; y guardamos su dirección en r14
+				or r3, r0, r0		; Inicializamos r3, que almacenará el desplazamiento 
+									; desde el comienzo del texto hasta la posición en que se 
+									; tratará el siguiente caracter
+				or r4, r0, r0		; Inicializamos contador de bytes ya tratados en la 
+									; zona 3
+				or r5, r0, r0		; Inicializamos contador de número de bit del campo de
+									; bits a poner a 0 o a 1 en cada caso (nBit)
+				ld r6, r8, 0		; Guardamos en r6 los 4 primeros caracteres del texto
+				st r6, r14, 0		; y los copiamos en la zona reservada
+				ld r6, r8, 4		; Guardamos en r6 los 4 siguientes caracteres
+				st r6, r14, 4		; y los copiamos
+				addu r3, r3, 8		; Sumamos 8 al contador de desplazamiento desde el inicio 							; del texto
+				addu r4, r4, 8		; Sumamos 8 al contador de bytes
+				or r11, r0, r0		
+				addu r15, r9, 5		; Direccion de la zona de bits 
+									
+BUCtexto:		extu r11, r5, 3<0>			
+				cmp r7, r11, r0				; ¿Es múltiplo de 8?
+				bb0 eq, r7, BUCtextoSigue
+				st.b r0, r15, r5			; Si es múltiplo de 8, inicializamos a 0 el byte  									; que contiene ese bit
+BUCtextoSigue:	subu r30, r30, 4			; Reservamos espacio en la pila para P
+				or r12, r30, r30			; y guardamos la direccion en r12
+				PUSH (r2)
+				PUSH (r4)
+				PUSH (r5)					; Reservamos registros					
+				PUSH (r10)
+				PUSH (r14)
+				
+				PUSH (r12)					; Parametros de BuscaMax
+				PUSH (r3)
+				PUSH (r8)
+				bsr BuscaMax
+											
+				POP (r8)					; Recuperamos registros salvaguardados
+				POP (r3)					
+				POP (r12)
+				POP (r14)
+				POP (r10)					
+				POP (r5)
+				POP (r4)
+				POP (r2)
+				
+				cmp r7, r29, 4				; Comprueba si L < 4
+				bb0 lt, r7, Comprimir  		; Si no lo es, comprime el texto
+				ld.bu r6, r8, r3			; Si lo es, guarda en r6 el siguiente caracter
+				st.b r6, r14, r4			; y lo almacena en pilaZona3
+				addu r3, r3, 1				; Avanza punteros en una unidad
+				addu r4, r4, 1
+				addu r5, r5, 1
+				addu r30, r30, 4			; Restauramos pila
+				cmp r7, r3, r2				; Comprueba si se ha llegado al final del texto 
+				bb1 eq, r7, Cabecera
+				br BUCtexto
 
+Comprimir:		PUSH (r2)			; Reservamos registros
+				PUSH (r3)
+				PUSH (r4)
+				PUSH (r8)
+				PUSH (r9)
+				PUSH (r14)
 
-;long = CoincidenCad ( cadena1, cadena2 )
-CoincidenCad:
-        PUSH(r1)
-        ld r2, r30, 4 ; r2<-M(cadena1) dir
-        ld r3, r30, 8 ; r3<-M(cadena2) dir
-        xor r4, r4, r4 ;r4 a 0's para desplazamiento
-        xor r29, r29, r29; r29 a 0's
+				PUSH (r5)			; Parametros de PoneBitA1
+				PUSH (r15)
+				bsr PoneBitA1
+				
+				POP (r15)			; Recuperamos registros salvaguardados
+				POP (r5)
+				POP (r14)
+				POP (r9)
+				POP (r8)
+				POP (r4)
+				POP (r3)
+				POP (r2)
+				
+				ld.bu r6, r12, 0	; Copia P 
+				st.b r6, r14, r4
+				addu r4, r4, 1
+				ld.bu r6, r12, 1
+				st.b r6, r14, r4
+				addu r4, r4, 1
+				st.b r29, r14, r4 	; y L en pilaZona3
+				addu r4, r4, 1
+				addu r3, r3, r29	; Incrementa r3 en L unidades y
+				addu r5, r5, 1		; nBit en 1 unidad
+				addu r30, r30, 4	; Restauramos pila
+				cmp r7, r3, r2		; Comprueba si se ha llegado al final del texto 
+				bb1 eq, r7, Cabecera
+				br BUCtexto
 
-CCadBUC:
-        ld.bu r5, r2, r4 ;cargamos en r5 el primer caracter de cadena1
-        ld.bu r6, r3, r4 ;cargamos en r6 el primer caracter de cadena2
-        cmp r7, r6, r5   ;comparamos los caracteres
-        bb0 eq, r7, FINCCad ;si *NO* es igual, entonces pos nada, saltamos a FIN
-        addu r29, r29, 1 ;aumentamos la cuenta de caracteres que coinciden
-        addu r4, r4, 1   ;aumentamos puntero
-        br CCadBUC  
+Cabecera:		st.b r2, r9, 0 
+				extu r2, r2, 2<8>
+				st.b r2, r9, 1
+				or r20, r0, 1
+				st.b r20, r9, 2
+				divu r5, r5, 8		; Calcula el numero de bytes del campo de bits
+				addu r5, r5, 1
+				addu r23, r5, 5		; y le suma 5
+				st.b r23, r9, 3
+				or r21, r0, r0
 
-FINCCad:POP(r1)
-        jmp(r1)
-;FIN CoincidenCad ( cadena1, cadena2 )
+BUCzona3:		ld.bu r22, r14, r21
+				st.b r22, r9, r23
+				addu r21, r21, 1
+				addu r23, r23, 1
+				cmp r7, r21, r4
+				bb1 eq, r7, FINComprime
+				br BUCzona3
+				
+FINComprime:	or r29, r0, 5			; Devuelve en r29 la suma de los 5 bytes 
+										; de la cabecera
+				addu r29, r29, r4  		; + numero de bytes texto comprimido  
+				addu r29, r29, r5		; + numero de bytes campo de bits
+				or r30, r31, r31
+				POP(r31)
+				POP(r1)
+				jmp(r1)
 
-BuscaMax: xor r0,r0,r0
-PoneBitA1: xor r0,r0,r0
-LeeBit: xor r0,r0,r0
-Comprime: xor r0,r0,r0
-Verifica: xor r0,r0,r0
-Descomprime: xor r0,r0,r0
+Descomprime: 	PUSH (r1)			; Guardamos la dirección de retorno
+				PUSH (r31)			; y el valor anterior del puntero de marco de pila
+				or r31, r30, r30	; Inicializamos puntero de marco de pila
+				ld r8, r31, 8		; Dirección del texto a descomprimir (cab)
+				ld r9, r31, 12		; Dirección de la zona donde se debe dejar
+									; el texto descomprimido
+				or r29, r0, r0		; Inicializamos contador de longitud del texto
+				ld.bu r20, r8, 0	; Cargamos en r10 la longitud del texto
+				ld.bu r10, r8, 1
+				mak r10, r10, 8<8>
+				or r10, r20, r10
+				;subu r10, r10, 1	; Y le restamos 1 para mas adelante determinar la posicion 
+									; en la que hay que saltar a FINDescomprime
+				ld.bu r20, r8, 3	; Calculamos la direccion de la zona 3 en r21
+				ld.bu r21, r8, 4
+				mak r21, r21, 8<8>
+				or r21, r20, r21
+				addu r21, r21, r8
+				
+				addu r23, r8, 5		; Dirección del mapa de bits
+				or r24, r0, r0		; Desplazamiento para recorrer desc
+				or r25, r0, r0		; Desplazamiento para recorrer mapa de bits
+				or r26, r0, r0		; Desplazamiento para recorrer com
+				
+BUCinicial:		ld.bu r6, r21, r26 		; Copia de com a desc 8 caracteres iniciales
+				st.b r6, r9, r24
+				addu r24, r24, 1
+				addu r26, r26, 1
+				cmp r7, r26, 8
+				bb1 eq, r7, BUCbytes
+				br BUCinicial
+				
+BUCbytes:		cmp r7, r24, r10			; Comprueba si se ha llegado al final del texto
+				bb1 eq, r7, FINDescomprime
+				PUSH(r29)					; Reservamos registros
+				PUSH(r25)					; Parametros de LeeBit
+				PUSH(r23)
+				bsr LeeBit
+				or r5, r29, r29
+				addu r30, r30, 8
+				POP(r29)
+				
+				addu r25, r25, 1
+				cmp r7, r5, 0				; ¿El bit es 0? 
+				bb0 eq, r7, Descomprimir 	; Si no es 0, salta a descomprimir
+				ld.bu r6, r21, r26			; Si es 0, copia el caracter siguiente
+				st.b r6, r9, r24
+				addu r24, r24, 1			; Incrementa punteros
+				addu r26, r26, 1
+				addu r29, r29, 1
+				br BUCbytes
+				
+Descomprimir:	ld.bu r27, r21, r26			; Cargamos en r27 la posicion de la referencia
+				addu r26, r26, 1			
+				ld.bu r6, r21, r26
+				mak r6, r6, 8<8>
+				or r27, r27, r6
+				addu r26, r26, 1
+				
+				ld.bu r22, r21, r26			; Cargamos en r22 la longitud de la 												; subcadena
+				addu r26, r26, 1
+				or r28, r0, r0				; Contador bytes a copiar
+				
+BUCdescomprimir: 	cmp r7, r28, r22		; Comprueba si ya hemos terminado de copiar los 													; bytes comprimidos
+					bb1 eq, r7, BUCbytes
+					ld.bu r6, r9, r27
+					st.b r6, r9, r24		
+					addu r27, r27, 1		; Incrementa punteros
+					addu r28, r28, 1
+					addu r29, r29, 1
+					addu r24, r24, 1
+					bsr BUCdescomprimir
+					
+FINDescomprime:	addu r29, r24, 0			; Devuelve el tamaño de la cadena descomprimida
+				st.b r0, r9, r24			; Añade "\0" al final de desc
+				or r30, r31, r31			
+				POP(r31)
+				POP(r1)
+				jmp(r1)
+				
+LeeBit:    ld r3, r30, r0		; Carga la dirección del campo de bits
+		   ld r4, r30, 4		; Carga el valor de Numbit
+		   or r29, r0, r0		; Pone a 0 el registro r29
+		   divu r5, r4, 8		; Calculamos el número de byte que queremos mirar
+		   ld.bu r3, r3, r5		; Carga el campo de bits en r3
+		   addu r5, r5, 1		; Calculamos la posicion en el campo de bits:
+								; 1) Le sumamos 1 al número de byte que estamos mirando
+		   mulu r5, r5, 8 		; 2) Calculamos la dirección de la posición 0 del byte
+		   subu r5, r5, 1		; 
+		   subu r5, r5, r4		; 3) Calcualmos la posicion del bit que queremos leer
+		   set r5, r5, 1<5>		; Carga en r4 la longitud del campo de unos a leer,
+								; que es 1
+		   extu r29, r3, r5		; Extrae el bit en r29
+		   jmp(r1)
+
+Verifica: 	PUSH (r1)			; Guardamos la dirección de retorno
+			PUSH (r31)			; y el valor anterior del puntero de marco de pila
+			or r31, r30, r30	; Inicializamos puntero de marco de pila
+			ld r8, r31, 8		; Dirección del texto a comprimir y descomprimir
+			ld r9, r31, 12		; Dirección de la zona donde se debe dejar
+								; Long1
+			ld r10, r31, 16		; Dirección de la zona donde se debe dejar
+								; Long2
+			PUSH (r8)			; Parámetro de LongCad
+			bsr LongCad			
+			addu r30, r30, 4
+			
+			or r28, r29, r29	; Guardamos la longitud del texto en r28
+			or r5, r29, r29		; Calculamos la longitud maxima del texto comprimido
+			subu r5, r5, 8
+			divu r5, r5, 8
+			addu r5, r5, 1
+			addu r5, r5, 5
+			addu r5, r5, r29
+			or r11, r0, r0		; Ajustamos por exceso al primer multiplo de 4:
+			
+BUCmul4Ver:	extu r11, r5, 2<0>			; Miramos los dos bits menos significativos de la longitud del texto para ver si es múltiplo de 4
+			cmp r7, r11, r0 			; ¿Los dos primeros bits menos significativos son 0?
+			bb1 eq, r7, SigueVerifica	; Si son 0, ya sabemos la cantidad de espacio a reservar
+			addu r5, r5, 1				; Si no, no es múltiplo de 4. Sumamos 1 y 
+			br BUCmul4Ver				; vamos al inicio del bucle
+			
+SigueVerifica:	subu r30, r30, r5	; Reservamos espacio para PilaCom
+				or r12, r30, r30	; Guardamos la direccion de PilaCom
+				addu r28, r28, 1	; Calculamos espacio para PilaDes, que es la longitud del 
+									; texto mas 1 byte para el caracter nulo
+				subu r30, r30, r28	; Reservamos espacio para PilaDes
+				or r13, r30, r30	; Guardamos la direccion de PilaDes
+				
+				PUSH (r28)			; Reservamos registros
+				PUSH (r12)			; Parametros de Comprime
+				PUSH (r8)
+				bsr Comprime 
+				POP (r8)			; Recuperamos registros y restauramos la pila
+				POP (r12)
+				POP (r28)
+				
+				PUSH (r28)			; Reservamos registros
+				PUSH (r13)
+				PUSH (r12)
+				bsr Descomprime		
+				POP (r12)			; Recuperamos registros y restauramos la pila
+				POP (r13)
+				POP (r28)
+				
+				cmp r7, r29, r28				; Comprueba si coinciden en longitud
+				bb0 eq, r7, FINLongDistintas
+				PUSH (r13)
+				PUSH (r8)
+				bsr CoincidenCad
+				POP (r8)
+				POP (r13)
+				cmp r7, r29, r28 				; Comprueba si coinciden en contenido 
+				bb0 eq, r7, FINContenidoDistinto
+				or r29, r0, r0
+				br FINVerifica
+				
+FINLongDistintas:	sub r29, r0, 1	
+					br FINVerifica
+
+FINContenidoDistinto: sub r29, r0, 2
+
+FINVerifica:		or r30, r31, r31			
+					POP(r31)
+					POP(r1)
+					jmp (r1)
 
 ;-----------------DATA-----------------;
-org 8000
-pila: data 0x00014FFC
-r29inicio: data 0x00000064
-cadena: data "123456789 123456789 12\0A"
-ref: data "*2345*78*0\0"
-C: data "7"
-from: data 3
-to: data 8
-cadena1: data "1234567890\0"
-cadena2: data "abcd12"
-;-----------------TESTERS-----------------;
-LongCadT:
-        LOAD(r30, pila)
-        LOAD(r29, r29inicio)
-        LEA(r20,cadena)
-        PUSH(r20)
-        bsr LongCad
-        POP(r20)
-        br END
-
-BuscaCarT:
-        LOAD(r30, pila)
-        LOAD(r29, r29inicio)
-        LOAD(r20,to) 
-        PUSH(r20)
-        LOAD(r20,from)
-        PUSH(r20)
-        LEA(r20, ref)
-        PUSH(r20)
-        LOAD(r20, C)
-        PUSH(r20)
-        bsr BuscaCar
-        POP(r20)
-        POP(r20)
-        POP(r20)
-        POP(r20)
-        br END
-
-CoincidenCadT:
-        LEA(r20, cadena2)
-        PUSH(r20)
-        LEA(r20, cadena1)
-        PUSH(r20)
-        bsr CoincidenCad
-        POP(r20)
-        POP(r20)
-        br END
-
+org 7000
+cadena1: 		data "tres tristes tigres comen trigo en un trigal, el primer tigre que...\0"
+cadena2: 		data "hola\0"
+cadena3: 		data "0123456781234\0"
+from:   		data 6
+to:     		data 44
+car:    		data "7"
+mapa_de_bits:	data 0x08000000; binario: 0000 0000 0000 0000 0000 0000 0000 1000  
+mapa_de_bits2: 	data 0x00002000; 		  0000 0000 0010 0000 0000 0000 0000 0000
+org 7500
+compr: 			data "\0";
+org 9000
+desc: 			data "\0";
+;-----------------PPAL "TESTER"-----------------;
+org 10000
 START:  
+        or r30, r0, 0xF000  	; Inicializamos el puntero de pila
+        or r31, r30, r30    	; Inicializamos el puntero de marco de pila
         
-        bsr CoincidenCadT
-          
-END: stop
+        ;LEA (r8, cadena1)   	; Guardamos en r8 la dirección de cadena2 
+        ;LEA (r9, cadena2)   	; Guardamos en r9 la dirección de cadena2
+        ;LOAD (r10, car)     	; Guardamos en r10 el valor de car
+        ;LOAD (r11, from)    	; Guardamos en r11 el valor de from
+        ;LOAD (r12, to)      	; Guardamos en r12 el valor de to
+        ;LEA (r13, mapa_de_bits)	; Guardamos en r13 la dirección de mapa_de_bits
+        
+        ;PUSH (r8)           	; Pasamos el parámetro a la función LongCad
+        ;bsr LongCad
+        ;POP (r8)
+        
+		;PUSH (r12)          	; Pasamos los parámetros a la función BuscaCar
+		;PUSH (r11)
+		;PUSH (r8)
+		;PUSH (r10)
+		;bsr BuscaCar
+        
+        ;PUSH (r9)          		; Pasamos los parámetros a la función CoincidenCad
+        ;PUSH (r8)
+        ;bsr CoincidenCad
+
+		;PUSH (r11)				; Pasamos los parámetros a la función LeeBit
+		;PUSH (r13)				
+		;bsr LeeBit
+	
+        ;PUSH (r11)				; Pasamos los parámetros a la función PoneBitA1
+		;PUSH (r13)
+		;bsr PoneBitA1
+		
+		or r2, r0, 5555
+		or r3, r0, 5555
+		or r4, r0, 5555
+		or r5, r0, 5555
+		or r6, r0, 5555
+		or r7, r0, 5555
+		or r8, r0, 5555
+		or r9, r0, 5555
+		or r10, r0, 5555
+		or r11, r0, 5555
+		or r12, r0, 5555
+		or r13, r0, 5555
+		or r14, r0, 5555
+		or r15, r0, 5555
+		or r16, r0, 5555
+		or r17, r0, 5555
+		or r18, r0, 5555
+		or r19, r0, 5555
+		or r20, r0, 5555
+		or r21, r0, 5555
+		or r22, r0, 5555
+		or r23, r0, 5555
+		or r24, r0, 5555
+		or r25, r0, 5555
+		or r26, r0, 5555
+		or r27, r0, 5555
+		or r28, r0, 5555
+		or r29, r0, 5555
+		
+		LEA (r20, cadena1)
+		LEA (r21, compr)
+		PUSH (r21)
+		PUSH (r20)
+		bsr Comprime
+		POP (r20)
+		POP (r21)
+		
+		LEA (r10, desc)
+		PUSH (r10)
+		PUSH (r21)
+		bsr Descomprime
+		POP (r21)
+		POP (r10)
+		
+		;LEA (r20, cadena1)
+		;LEA (r21, compr)
+		;LEA (r22, desc)
+		;PUSH (r22)
+		;PUSH (r21)
+		;PUSH (r20)
+		;bsr Verifica
+		;POP (r20)
+		;POP (r21)
+		;POP (r22)
+		
+		stop
+        
+;
+; Debe incorporar este fichero con TODAS sus l�neas, sin modificar
+; ninguna de ellas, al final de su archivo CDV24.ens
+;
+; Este aviso se refiere tambi�n a las l�neas de comentario
+; 
+;
+;; Grupo:    230053 - Tue Oct 29 18:28:28 CET 2024
+
+BuscaMax:
+	PUSH (r1)
+	PUSH (r31)
+	or   r31, r30, 0
+	or   r28, r0, 0x333A
+	PUSH (r28)
+
+	ld   r10, r31, 8;  REF
+	ld   r11, r31, 12; MAX
+	ld   r12, r31, 16; Dir(JJ)
+
+	sub  r5, r0, 1		; guarda -1 en *JJ por si no se
+	st   r5, r12, 0		; encuentran coincidencias
+
+	addu r27, r0, r0  ; P
+	addu r28, r0, r0  ; L
+
+BucBM:
+	ld.bu r20, r10, r11	; C=REF(max)
+
+				; Reserva registros que
+				; necesita conservar
+	PUSH (r28) 	    	; L
+	PUSH (r11)	    	; MAX
+
+	     		    	; Par�metros de BuscaCar
+	PUSH (r27)	    	; P
+	PUSH (r10)	    	; REF
+	PUSH (r20)	   	; C
+	bsr  BuscaCar
+	POP  (r20)
+	POP  (r10)
+	POP  (r27)
+
+	POP  (r11)		; Recupera registros
+	POP  (r28)	        ; salvaguardados
+
+	cmp  r5, r29, r11	; nuevo P es >= MAX ??
+	bb1  hs, r5, finBM
+	addu r27, r29, r0	; P = nuevo P
+	
+	addu r13, r10, r27	; *REF(P)
+	addu r14, r10, r11 	; *REF(max)	
+
+	PUSH (r11)     		; Reserva registros que
+	PUSH (r10)		; necesita conservar
+	PUSH (r28)
+	PUSH (r27)
+	
+	PUSH (r14)		; Par�metros de CoincidenCad
+	PUSH (r13)
+	bsr  CoincidenCad
+	POP  (r13)
+	POP  (r14)
+	
+	POP  (r27)		; Recupera registros
+	POP  (r28)		; salvaguardados
+	POP  (r10)
+	POP  (r11)
+
+	cmp r5, r29, r28	; Comprueba si longitud > L
+	bb1 le, r5, contBM	; Si no lo es, contin�a
+	cmp r5, r29, 255	; Comprueba si longitud > 255
+	bb1 le, r5, noLimBM	; Si no lo es, contin�a
+	addu r29, r0, 255	; Si lo es, limita su valor a 255
+	
+noLimBM:
+	addu r28, r29, r0	; actualiza L
+	ld   r12, r31, 16	; Dir(JJ)
+	st   r27, r12, r0	; actualiza P en *JJ
+	bb1 ge, r5, finBM	; Si coincidencia >= 255 termina
+contBM: 
+	addu r27, r27, 1	; Pasa al siguiente car�cter
+	cmp  r5, r27, r11	; Es P>=max ?
+	bb1  hs, r5, finBM
+	
+	br   BucBM   		; Nueva b�squeda del primer car�cter
+
+finBM:
+	addu r29, r28, r0	; asigna L al valor de retorno r29
+	  
+	or   r27, r0, 0x7F2
+	POP  (r28)
+
+	or   r30, r31, 0
+	POP  (r31)
+	POP  (r1)
+	jmp  (r1)
+;; Grupo:    230053
